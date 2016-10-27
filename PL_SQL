@@ -1,0 +1,126 @@
+--获取未知结构的动态游标的字段名
+DECLARE 
+  l_curid INTEGER;
+  l_cnt NUMBER; 
+  l_desctab dbms_sql.desc_tab; 
+  l_sqltext VARCHAR2(2000); 
+BEGIN 
+
+  l_sqltext := 'select 1 as col1,2 as col2, 3 as col3 from dual ';
+
+  --l_sqltext := 'select owner,object_type,object_name from dba_objects 
+  --where rownum<= 10';--可以是任意有效的查询sql文本 
+  l_curid   := dbms_sql.open_cursor(); 
+  dbms_sql.parse(l_curid, l_sqltext, dbms_sql.native); 
+  dbms_sql.describe_columns(l_curid, l_cnt, l_descTab);  
+
+
+  FOR i IN 1 ..l_desctab.count
+      LOOP 
+      dbms_output.put_line(l_desctab(i).col_name); 
+      --dbms_output.put(lpad(l_desctab(i).col_name, 20)); 
+      END LOOP; 
+      
+      
+      
+  --dbms_output.new_line;  
+  dbms_sql.close_cursor(l_curId);
+END;  
+
+
+-- 用户所有表及其信息
+select t.* from user_tab_columns t;
+
+-- 查询有'PRO_ID'字段的所有表
+select table_name, column_name
+  from user_tab_columns
+ where column_name = 'PRO_ID';
+
+-- 用户表信息
+select * from user_tables
+
+-- 查询用户表 字段及其相关数据
+SELECT USER_TAB_COLS.TABLE_NAME   as 表名,
+       USER_TAB_COLS.COLUMN_NAME  as 列名,
+       USER_TAB_COLS.DATA_TYPE    as 数据类型,
+       USER_TAB_COLS.DATA_LENGTH  as 长度,
+       USER_TAB_COLS.NULLABLE     as 是否为空,
+       USER_TAB_COLS.COLUMN_ID    as 列序号,
+       user_col_comments.comments as 备注
+  FROM USER_TAB_COLS
+ inner join user_col_comments on user_col_comments.TABLE_NAME =
+                                 USER_TAB_COLS.TABLE_NAME
+                             and user_col_comments.COLUMN_NAME =
+                                 USER_TAB_COLS.COLUMN_NAME;
+ 
+--- 查询某个表中的字段名称、类型、精度、长度、是否为空、默认值
+select COLUMN_NAME,DATA_TYPE,DATA_PRECISION,DATA_SCALE,NULLABLE,data_default
+from user_tab_columns 
+where lower(table_name) ='t_product';
+
+-- 查询某个表中的主键字段名
+select col.column_name
+  from user_constraints con, user_cons_columns col
+ where con.constraint_name = col.constraint_name
+   and con.constraint_type = 'P'
+   and lower(col.table_name) = 't_product';
+
+-- 关联到表的所有字段信息： 
+select col.column_name,
+       uc.constraint_type,
+       case uc.constraint_type
+         when 'P' then
+          '√'
+         else
+          ''
+       end "PrimaryKey"
+  from user_tab_columns col
+  left join user_cons_columns ucc on ucc.table_name = col.table_name
+                                 and ucc.column_name = col.column_name
+  left join user_constraints uc on uc.constraint_name = ucc.constraint_name
+                               and uc.constraint_type = 'P'
+ where lower(col.table_name) = 't_product'
+   
+--查询某个表中的外键字段名称、所引用表名、所应用字段名 
+select distinct (col.column_name), r.table_name, r.column_name
+  from user_constraints con,
+       user_cons_columns col,
+       (select t2.table_name, t2.column_name, t1.r_constraint_name
+          from user_constraints t1, user_cons_columns t2
+         where t1.r_constraint_name = t2.constraint_name
+           and lower(t1.table_name) = 't_product') r
+ where con.constraint_name = col.constraint_name
+   and con.r_constraint_name = r.r_constraint_name
+   and lower(con.table_name) = 't_product'
+
+
+-- 生成特定表的查询,条件是指定表的所有者，指定要查询的字段
+declare 
+
+  mycolumnname VARCHAR(255):='userid';--定义要查询的字段名变量，执行前改动成您要查询的字段名
+  myownername VARCHAR(255):='system';--定义要查询的数据库username变量，执行前改动成您要查询的数据库username
+  mystring NVARCHAR2(4000):=''; --定义要输出的字符串变量   
+
+  cursor mycursor is --定义游标          
+  select * from dba_tab_columns where lower(column_name)=mycolumnname and lower(owner)=myownername; 
+  myrecord mycursor%rowtype;  --定义游标记录类型   
+  Counter int :=0;   
+begin   
+  open mycursor;  --打开游标   
+  if mycursor%isopen  then  --推断打开成功   
+    loop --循环获取记录集     
+      fetch mycursor into myrecord; --获取游标中的记录         
+
+      if mycursor%found then  --游标的found属性推断是否有记录  
+        mystring:='select * from '||myrecord.table_name||';';
+        dbms_output.put_line(mystring);    
+      else            
+        exit;
+      end if;
+       
+    end loop;   
+  else     
+    dbms_output.put_line('游标没有打开');   
+  end if;  
+  close mycursor;
+end;
