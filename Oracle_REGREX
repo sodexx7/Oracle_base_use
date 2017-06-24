@@ -1,0 +1,7 @@
+-- 正则字符替换示例
+SELECT DECODE(REGEXP_SUBSTR(592120, '59(0|1|2|3|8)[[:digit:]]{2}0'),
+              '',
+              592120,
+              592121)
+
+  FROM DUAL;
